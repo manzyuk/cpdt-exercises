@@ -126,6 +126,21 @@ Fixpoint valType (v : val) : type :=
 Definition varsType (vs : env val) (ts : env type) :=
   forall x : var, valType (vs x) = ts x.
 
+Lemma add_type_inversion : forall (ot1 ot2 : option type) (t : type),
+    addType ot1 ot2 = Some t -> ot1 = Some TNat /\ ot2 = Some TNat.
+  intros; destruct ot1; destruct ot2;
+    match goal with
+      | [ H : addType (Some ?T1) (Some ?T2) = _ |- _ ] =>
+        destruct T1; destruct T2
+      | [ H : addType (Some ?T) None = _ |- _ ] =>
+        destruct T
+      | [ H : addType None (Some ?T) = _ |- _ ] =>
+        destruct T
+      | [ H : addType None None = _ |- _ ] =>
+        simpl in H
+    end; crush.
+Qed.
+
 Theorem exp_type_sound :
   forall (e : exp) (t : type) (vs : env val) (ts : env type),
     expType e ts = Some t /\ varsType vs ts ->
