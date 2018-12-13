@@ -127,7 +127,7 @@ Definition varsType (vs : env val) (ts : env type) :=
   forall x : var, valType (vs x) = ts x.
 
 Lemma add_type_inversion : forall (ot1 ot2 : option type) (t : type),
-    addType ot1 ot2 = Some t -> ot1 = Some TNat /\ ot2 = Some TNat.
+    addType ot1 ot2 = Some t -> ot1 = Some TNat /\ ot2 = Some TNat /\ t = TNat.
   intros; destruct ot1; destruct ot2;
     match goal with
       | [ H : addType (Some ?T1) (Some ?T2) = _ |- _ ] =>
@@ -145,3 +145,20 @@ Theorem exp_type_sound :
   forall (e : exp) (t : type) (vs : env val) (ts : env type),
     expType e ts = Some t /\ varsType vs ts ->
     exists v : val, eval e vs = Some v /\ valType v = t.
+  induction e.
+  (* EConst n *)
+  intros. exists (VConst n). crush.
+  (* EAdd e1 e2 *)
+  intros. destruct H as [Hadd_type Hvs].
+  simpl in Hadd_type.
+  set (H := add_type_inversion (expType e1 ts) (expType e2 ts) Hadd_type).
+  destruct H as [He1_type [He2_type Ht]].
+  set (H1 := IHe1 TNat vs ts (conj He1_type Hvs)).
+  destruct H1 as [v1 [He1_val Hv1_type]].
+  set (H2 := IHe2 TNat vs ts (conj He2_type Hvs)).
+  destruct H2 as [v2 [He2_val Hv2_type]].
+  destruct v1 as [n1 | v11 v12].
+  destruct v2 as [n2 | v21 v22].
+  exists (VConst (plus n1 n2)). crush.
+  simpl in Hv2_type. discriminate Hv2_type.
+  simpl in Hv1_type. discriminate Hv1_type.
