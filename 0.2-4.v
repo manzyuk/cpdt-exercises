@@ -59,14 +59,16 @@ Fixpoint eval (e : exp) (vs : env val) : option val :=
 Definition assign (T : Set) (x : var) (t : T) (ts : env T) : env T :=
   fun x' => if eq_nat_dec x x' then t else ts x'.
 
+Definition runAssign (x : var) (ov : option val) (k : env val -> option val) (vs : env val) :=
+  match ov with
+  | Some v => k (assign x v vs)
+  | None => None
+  end.
+
 Fixpoint run (c : cmd) (vs : env val) : option val :=
   match c with
   | CExp e => eval e vs
-  | CAssign x e c' =>
-    match eval e vs with
-    | Some v => run c' (assign x v vs)
-    | None => None
-    end
+  | CAssign x e c' => runAssign x (eval e vs) (fun vs => run c' vs) vs
   end.
 
 Inductive type : Set :=
@@ -107,14 +109,16 @@ Fixpoint expType (e : exp) (ts : env type) : option type :=
   | EVar x => Some (ts x)
   end.
 
+Definition assignType (x : var) (ot : option type) (k : env type -> option type) (ts : env type) :=
+  match ot with
+  | Some t => k (assign x t ts)
+  | None => None
+  end.
+
 Fixpoint cmdType (c : cmd) (ts : env type): option type :=
   match c with
   | CExp e => expType e ts
-  | CAssign x e c' =>
-    match expType e ts with
-    | Some t => cmdType c' (assign x t ts)
-    | _ => None
-    end
+  | CAssign x e c' => assignType x (expType e ts) (fun ts => cmdType c' ts) ts
   end.
 
 Fixpoint valType (v : val) : type :=
@@ -125,6 +129,14 @@ Fixpoint valType (v : val) : type :=
 
 Definition varsType (vs : env val) (ts : env type) :=
   forall x : var, valType (vs x) = ts x.
+
+Lemma vars_type_assign : forall (vs : env val) (ts : env type) (x : var) (v : val) (t : type),
+    varsType vs ts /\ valType v = t -> varsType (assign x v vs) (assign x t ts).
+  intros. red. intro x'. destruct H as [Hvs_ts Hv_t].
+  unfold assign. destruct (eq_nat_dec x x').
+  assumption.
+  red in Hvs_ts. apply (Hvs_ts x').
+Qed.
 
 Lemma add_type_inversion : forall (ot1 ot2 : option type) (t : type),
     addType ot1 ot2 = Some t -> ot1 = Some TNat /\ ot2 = Some TNat /\ t = TNat.
@@ -217,3 +229,23 @@ Theorem exp_type_sound :
   intros. destruct H as [Hvar_type Hvs].
   simpl in Hvar_type. inversion Hvar_type. red in Hvs. exists (vs v). crush.
 Qed.
+
+Lemma assign_type_inversion :
+  forall (x : var) (ot : option type) (k : env type -> option type) (ts : env type) (t : type),
+    assignType x ot k ts = Some t ->
+    exists t' : type, ot = Some t' /\ k (assign x t' ts) = Some t.
+  intros. destruct ot as [t'|]. exists t'. crush.
+  simpl in H. discriminate H.
+Qed.
+
+Theorem cmd_type_sound :
+  forall (c : cmd) (t : type) (vs : env val) (ts : env type),
+    cmdType c ts = Some t /\ varsType vs ts ->
+    exists v : val, run c vs = Some v /\ valType v = t.
+  induction c.
+  (* CExp e *)
+  intros. destruct H as [Hexp_type Hvs].
+  simpl in Hexp_type.
+  set (H := exp_type_sound e (conj Hexp_type Hvs)).
+  destruct H as [v [Hexp_val Hval_type]].
+  exists v. crush.
