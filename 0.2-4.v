@@ -150,8 +150,15 @@ Qed.
 
 Lemma fst_type_inversion : forall (ot : option type) (t1 : type),
     fstType ot = Some t1 -> exists t2 : type, ot = Some (TPair t1 t2).
-  intros; destruct ot as [t|].
+  intros. destruct ot as [t|].
   destruct t as [|t1' t2']; crush. exists t2'. auto.
+  crush.
+Qed.
+
+Lemma snd_type_inversion : forall (ot : option type) (t2 : type),
+    sndType ot = Some t2 -> exists t1 : type, ot = Some (TPair t1 t2).
+  intros. destruct ot as [t|].
+  destruct t as [|t1' t2']; crush. exists t1'. auto.
   crush.
 Qed.
 
@@ -196,3 +203,13 @@ Theorem exp_type_sound :
   destruct v as [n |v1 v2].
   simpl in Hv_type. discriminate Hv_type.
   exists v1. crush.
+  (* ESnd e *)
+  intros t2 vs ts H. destruct H as [Hsnd_type Hvs].
+  simpl in Hsnd_type.
+  set (H := snd_type_inversion (expType e ts) Hsnd_type).
+  destruct H as [t1 He_type].
+  set (H := IHe (TPair t1 t2) vs ts (conj He_type Hvs)).
+  destruct H as [v [He_val Hv_type]].
+  destruct v as [n |v1 v2].
+  simpl in Hv_type. discriminate Hv_type.
+  exists v2. crush.
