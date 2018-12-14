@@ -213,3 +213,7 @@ Theorem exp_type_sound :
   destruct v as [n |v1 v2].
   simpl in Hv_type. discriminate Hv_type.
   exists v2. crush.
+  (* EVar v *)
+  intros. destruct H as [Hvar_type Hvs].
+  simpl in Hvar_type. inversion Hvar_type. red in Hvs. exists (vs v). crush.
+Qed.
