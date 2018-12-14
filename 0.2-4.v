@@ -178,56 +178,43 @@ Theorem exp_type_sound :
   forall (e : exp) (t : type) (vs : env val) (ts : env type),
     expType e ts = Some t /\ varsType vs ts ->
     exists v : val, eval e vs = Some v /\ valType v = t.
-  induction e.
+  induction e as [n|e1 IHe1 e2 IHe2|e1 IHe1 e2 IHe2|e IHe|e IHe|x].
   (* EConst n *)
   intros. exists (VConst n). crush.
   (* EAdd e1 e2 *)
-  intros. destruct H as [Hadd_type Hvs].
-  simpl in Hadd_type.
-  set (H := add_type_inversion (expType e1 ts) (expType e2 ts) Hadd_type).
-  destruct H as [He1_type [He2_type Ht]].
-  set (H1 := IHe1 TNat vs ts (conj He1_type Hvs)).
-  destruct H1 as [v1 [He1_val Hv1_type]].
-  set (H2 := IHe2 TNat vs ts (conj He2_type Hvs)).
-  destruct H2 as [v2 [He2_val Hv2_type]].
+  intros. destruct H as [Hadd_type Hvs]. simpl in Hadd_type.
+  destruct (add_type_inversion (expType e1 ts) (expType e2 ts) Hadd_type)
+    as [He1_type [He2_type Ht]].
+  destruct (IHe1 TNat vs ts (conj He1_type Hvs)) as [v1 [He1_val Hv1]].
+  destruct (IHe2 TNat vs ts (conj He2_type Hvs)) as [v2 [He2_val Hv2]].
   destruct v1 as [n1 | v11 v12].
   destruct v2 as [n2 | v21 v22].
   exists (VConst (plus n1 n2)). crush.
-  simpl in Hv2_type. discriminate Hv2_type.
-  simpl in Hv1_type. discriminate Hv1_type.
+  simpl in Hv2. discriminate Hv2.
+  simpl in Hv1. discriminate Hv1.
   (* EPair e1 e2 *)
-  intros. destruct H as [Hpair_type Hvs].
-  simpl in Hpair_type.
-  set (H := pair_type_inversion (expType e1 ts) (expType e2 ts) Hpair_type).
-  destruct H as [t1 [t2 [He1_type [He2_type Ht]]]].
-  set (H1 := IHe1 t1 vs ts (conj He1_type Hvs)).
-  destruct H1 as [v1 [He1_val Hv1_type]].
-  set (H2 := IHe2 t2 vs ts (conj He2_type Hvs)).
-  destruct H2 as [v2 [He2_val Hv2_type]].
+  intros. destruct H as [Hpair_type Hvs]. simpl in Hpair_type.
+  destruct (pair_type_inversion (expType e1 ts) (expType e2 ts) Hpair_type)
+    as [t1 [t2 [He1_type [He2_type Ht]]]].
+  destruct (IHe1 t1 vs ts (conj He1_type Hvs)) as [v1].
+  destruct (IHe2 t2 vs ts (conj He2_type Hvs)) as [v2].
   exists (VPair v1 v2). crush.
   (* EFst e *)
-  intros t1 vs ts H. destruct H as [Hfst_type Hvs].
-  simpl in Hfst_type.
-  set (H := fst_type_inversion (expType e ts) Hfst_type).
-  destruct H as [t2 He_type].
-  set (H := IHe (TPair t1 t2) vs ts (conj He_type Hvs)).
-  destruct H as [v [He_val Hv_type]].
+  intros t1 vs ts H. destruct H as [Hfst_type Hvs]. simpl in Hfst_type.
+  destruct (fst_type_inversion (expType e ts) Hfst_type) as [t2 He_type].
+  destruct (IHe (TPair t1 t2) vs ts (conj He_type Hvs)) as [v [He_val Hv]].
   destruct v as [n |v1 v2].
-  simpl in Hv_type. discriminate Hv_type.
+  simpl in Hv. discriminate Hv.
   exists v1. crush.
   (* ESnd e *)
-  intros t2 vs ts H. destruct H as [Hsnd_type Hvs].
-  simpl in Hsnd_type.
-  set (H := snd_type_inversion (expType e ts) Hsnd_type).
-  destruct H as [t1 He_type].
-  set (H := IHe (TPair t1 t2) vs ts (conj He_type Hvs)).
-  destruct H as [v [He_val Hv_type]].
+  intros t2 vs ts H. destruct H as [Hsnd_type Hvs]. simpl in Hsnd_type.
+  destruct (snd_type_inversion (expType e ts) Hsnd_type) as [t1 He_type].
+  destruct (IHe (TPair t1 t2) vs ts (conj He_type Hvs)) as [v [He_val Hv]].
   destruct v as [n |v1 v2].
-  simpl in Hv_type. discriminate Hv_type.
+  simpl in Hv. discriminate Hv.
   exists v2. crush.
   (* EVar v *)
-  intros. destruct H as [Hvar_type Hvs].
-  simpl in Hvar_type. inversion Hvar_type. red in Hvs. exists (vs v). crush.
+  intros. exists (vs x). crush.
 Qed.
 
 Lemma assign_type_inversion :
@@ -242,10 +229,15 @@ Theorem cmd_type_sound :
   forall (c : cmd) (t : type) (vs : env val) (ts : env type),
     cmdType c ts = Some t /\ varsType vs ts ->
     exists v : val, run c vs = Some v /\ valType v = t.
-  induction c.
+  induction c as [e|x e c].
   (* CExp e *)
-  intros. destruct H as [Hexp_type Hvs].
-  simpl in Hexp_type.
-  set (H := exp_type_sound e (conj Hexp_type Hvs)).
-  destruct H as [v [Hexp_val Hval_type]].
-  exists v. crush.
+  intros. simpl in H. destruct (exp_type_sound e H) as [v]. exists v. crush.
+  (* CAssign v e c *)
+  intros. destruct H as [Hassign_type Hvs]. simpl in Hassign_type.
+  destruct (assign_type_inversion x (expType e ts) (fun ts => cmdType c ts) ts Hassign_type)
+    as [t' [He_type Hc_type]].
+  destruct (exp_type_sound e (conj He_type Hvs)) as [v' [He_val Hv']].
+  set (Hvs' := vars_type_assign x v' (conj Hvs Hv')).
+  destruct (IHc t (assign x v' vs) (assign x t' ts) (conj Hc_type Hvs')) as [v''].
+  exists v''. crush.
+Qed.
