@@ -10,9 +10,5 @@ Definition compare : forall n m : nat, {n <= m} + {n > m}.
             | O, _ => Yes
             | _, O => No
             | S n', S m' => Reduce (f n' m')
-            end).
-  apply Nat.le_0_l.
-  apply gt_Sn_O.
-  apply Peano.le_n_S. assumption.
-  apply gt_n_S. assumption.
+            end); crush.
 Defined.
