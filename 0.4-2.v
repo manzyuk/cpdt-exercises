@@ -53,11 +53,12 @@ Definition negate : forall p : prop,
               p1' <- F p1;
               p2' <- F p2;
               [Conj p1' p2']
+            end); crush;
+    repeat (match goal with
+            | [i : forall truth : var -> bool, _ <-> _ |- _] =>
+              destruct (i truth); clear i
+            | [|- context[if ?E then _ else _]] =>
+              destruct E
             end); crush.
-  destruct (truth v). constructor. apply (H (fun f => f)).
-  set (Hp1 := i truth). unfold iff in Hp1. destruct Hp1. apply (H0 H1 H).
-  set (Hp2 := i0 truth). unfold iff in Hp2. destruct Hp2. apply (H0 H2 H).
-  set (Hp1 := i truth). unfold iff in Hp1. destruct Hp1. apply (H H0 H1).
-  set (Hp2 := i0 truth). unfold iff in Hp2. destruct Hp2. apply (H H0 H2).
-  destruct (decide truth p1'). right; apply (H0 p0). left. assumption.
+  destruct (decide truth p1'); crush.
 Defined.
