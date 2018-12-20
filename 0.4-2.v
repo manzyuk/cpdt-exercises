@@ -34,20 +34,25 @@ Definition decide : forall (truth : var -> bool) (p : prop),
   intros. induction p; crush. destruct (truth v); crush.
 Defined.
 
+Notation "[ e ]" := (exist _ e _).
+Notation "x <- e1 ; e2" :=
+  (match e1 with exist x _ => e2 end)
+  (right associativity, at level 60).
+
 Definition negate : forall p : prop,
     {p' : prop | forall truth, propDenote truth p <-> ~ propDenote truth p'}.
   refine (fix F (p : prop) : {p' : prop | forall truth, propDenote truth p <-> ~ propDenote truth p'} :=
             match p with
-            | Var v => exist _ (Neg (Var v)) _
-            | Neg p => exist _ p _
+            | Var v => [Neg (Var v)]
+            | Neg p => [p]
             | Conj p1 p2 =>
-              match F p1, F p2 with
-              | exist p1' _, exist p2' _ => exist _ (Disj p1' p2') _
-              end
+              p1' <- F p1;
+              p2' <- F p2;
+              [Disj p1' p2']
             | Disj p1 p2 =>
-              match F p1, F p2 with
-              | exist p1' _, exist p2' _ => exist _ (Conj p1' p2') _
-              end
+              p1' <- F p1;
+              p2' <- F p2;
+              [Conj p1' p2']
             end); crush.
   destruct (truth v). constructor. apply (H (fun f => f)).
   set (Hp1 := i truth). unfold iff in Hp1. destruct Hp1. apply (H0 H1 H).
