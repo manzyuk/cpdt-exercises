@@ -394,3 +394,95 @@ Defined.
 Lemma test_looper : run (looper true) tt.
   exists 1; reflexivity.
 Qed.
+
+(* Co-Inductive Non-Termination Monads *)
+
+CoInductive thunk (A : Type) : Type :=
+| Answer : A -> thunk A
+| Think : thunk A -> thunk A.
+
+CoFixpoint TBind A B (m1 : thunk A) (m2 : A -> thunk B) : thunk B :=
+  match m1 with
+  | Answer x => m2 x
+  | Think m1' => Think (TBind m1' m2)
+  end.
+
+Definition frob A (m : thunk A) : thunk A :=
+  match m with
+  | Answer x => Answer x
+  | Think m' => Think m'
+  end.
+
+Theorem frob_eq : forall A (m : thunk A), frob m = m.
+  destruct m; reflexivity.
+Qed.
+
+CoFixpoint fact (n acc : nat) : thunk nat :=
+  match n with
+  | O => Answer acc
+  | S n' => Think (fact n' (S n' * acc))
+  end.
+
+Inductive eval A : thunk A -> A -> Prop :=
+| EvalAnswer : forall x, eval (Answer x) x
+| EvalThink : forall m x, eval m x -> eval (Think m) x.
+
+Hint Rewrite frob_eq.
+
+Lemma eval_frob : forall A (c : thunk A) x,
+    eval (frob c) x -> eval c x.
+  crush.
+Qed.
+
+Theorem eval_fact : eval (fact 5 1) 120.
+  repeat (apply eval_frob; simpl; constructor).
+Qed.
+
+Notation "x <- m1 ; m2" :=
+  (TBind m1 (fun x => m2)) (right associativity, at level 70).
+
+(*
+CoFixpoint fib (n : nat) : thunk nat :=
+  match n with
+  | 0 => Answer 1
+  | 1 => Answer 1
+  | _ =>
+    n1 <- fib (pred n);
+    n2 <- fib (pred (pred n));
+    Answer (n1 + n2)
+  end.
+ *)
+
+CoInductive comp (A : Type) : Type :=
+| Ret : A -> comp A
+| Bnd : forall B, comp B -> (B -> comp A) -> comp A.
+
+Inductive exec A : comp A -> A -> Prop :=
+| ExecRet : forall x, exec (Ret x) x
+| ExecBnd : forall B (c : comp B) (f : B -> comp A) x1 x2,
+    exec (A := B) c x1 -> exec (f x1) x2 -> exec (Bnd c f) x2.
+
+Notation "x <- m1 ; m2" := (Bnd m1 (fun x => m2)).
+
+CoFixpoint mergeSort'' A (le : A -> A -> bool) (ls : list A) : comp (list A) :=
+  if le_lt_dec 2 (length ls)
+  then let lss := split ls in
+       ls1 <- mergeSort'' le (fst lss);
+       ls2 <- mergeSort'' le (snd lss);
+       Ret (merge le ls1 ls2)
+  else Ret ls.
+
+Definition frob' A (c : comp A) :=
+  match c with
+  | Ret x => Ret x
+  | Bnd _ c' f => Bnd c' f
+  end.
+
+Lemma exec_frob : forall A (c : comp A) x,
+    exec (frob' c) x -> exec c x.
+  destruct c; crush.
+Qed.
+
+Lemma test_mergeSort'' : exec (mergeSort'' leb (1 :: 2 :: 36 :: 8 :: 19 :: nil)) (1 :: 2 :: 8 :: 19 :: 36 :: nil).
+  repeat (apply exec_frob; simpl; econstructor).
+Qed.
