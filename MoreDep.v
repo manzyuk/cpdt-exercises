@@ -167,3 +167,159 @@ Theorem cfold_correct : forall t (e : exp t), expDenote e = expDenote (cfold e).
             | [ |- (if ?E then _ else _) = _] => destruct E
             end; crush).
 Qed.
+
+(* Dependently Typed Red-Black Trees *)
+
+Inductive color : Set := Red | Black.
+
+Inductive rbtree : color -> nat -> Set :=
+| Leaf : rbtree Black 0
+| RedNode : forall n, rbtree Black n -> nat -> rbtree Black n -> rbtree Red n
+| BlackNode : forall c1 c2 n, rbtree c1 n -> nat -> rbtree c2 n -> rbtree Black (S n).
+
+Require Import Max Min.
+
+Section depth.
+  Variable f : nat -> nat -> nat.
+
+  Fixpoint depth c n (t : rbtree c n) : nat :=
+    match t with
+    | Leaf => 0
+    | RedNode _ t1 _ t2 => S (f (depth t1) (depth t2))
+    | BlackNode _ _ _ t1 _ t2 => S (f (depth t1) (depth t2))
+    end.
+End depth.
+
+Check min_dec.
+
+Theorem depth_min : forall c n (t : rbtree c n), depth min t >= n.
+  induction t; crush;
+    match goal with
+    | [ |- context[min ?X ?Y]] => destruct (min_dec X Y)
+    end; crush.
+Qed.
+
+Lemma depth_max' : forall c n (t : rbtree c n),
+    match c with
+    | Red => depth max t <= 2 * n + 1
+    | Black => depth max t <= 2 * n
+    end.
+  induction t; crush;
+    match goal with
+    | [ |- context[max ?X ?Y]] => destruct (max_dec X Y)
+    end; crush;
+      repeat (match goal with
+              | [H : context[match ?C with Red => _ | Black => _ end] |- _] =>
+                destruct C
+              end; crush).
+Qed.
+
+Theorem depth_max : forall c n (t : rbtree c n), depth max t <= 2 * n + 1.
+  intros; generalize (depth_max' t); destruct c; crush.
+Qed.
+
+Theorem balanced : forall c n (t : rbtree c n),
+    2 * depth min t + 1 >= depth max t.
+  intros; generalize (depth_min t); generalize (depth_max t); crush.
+Qed.
+
+Inductive rtree : nat -> Set :=
+| RedNode' : forall c1 c2 n, rbtree c1 n -> nat -> rbtree c2 n -> rtree n.
+
+Section present.
+  Variable x : nat.
+
+  Fixpoint present c n (t : rbtree c n) : Prop :=
+    match t with
+    | Leaf => False
+    | RedNode _ a y b => present a \/ x = y \/ present b
+    | BlackNode _ _ _ a y b => present a \/ x = y \/ present b
+    end.
+
+  Definition rpresent n (t : rtree n) : Prop :=
+    match t with
+    | RedNode' _ _ _ a y b => present a \/ x = y \/ present b
+    end.
+End present.
+
+Locate "{ _ : _ & _ }".
+
+Print sigT.
+
+Notation "{< x >}" := (existT _ _ x).
+
+Definition balance1 n (a : rtree n) (data : nat) c2 :=
+  match a in rtree n return rbtree c2 n -> {c : color & rbtree c (S n)} with
+  | RedNode' _ c0 _ t1 y t2 =>
+    match t1 in rbtree c n return rbtree c0 n -> rbtree c2 n -> {c : color & rbtree c (S n)} with
+    | RedNode _ a x b => fun c d => {<RedNode (BlackNode a x b) y (BlackNode c data d)>}
+    | t1' => fun t2 =>
+               match t2 in rbtree c n return rbtree Black n -> rbtree c2 n -> {c : color & rbtree c (S n)} with
+               | RedNode _ b x c => fun a d => {<RedNode (BlackNode a y b) x (BlackNode c data d)>}
+               | b => fun a t => {<BlackNode (RedNode a y b) data t>}
+               end t1'
+    end t2
+  end.
+
+Definition balance2 n (a : rtree n) (data : nat) c2 :=
+  match a in rtree n return rbtree c2 n -> {c : color & rbtree c (S n)} with
+  | RedNode' _ c0 _ t1 z t2 =>
+    match t1 in rbtree c n return rbtree c0 n -> rbtree c2 n -> {c : color & rbtree c (S n)} with
+    | RedNode _ b y c => fun d a => {<RedNode (BlackNode a data b) y (BlackNode c z d)>}
+    | t1' => fun t2 =>
+               match t2 in rbtree c n return rbtree Black n -> rbtree c2 n -> {c : color & rbtree c (S n)} with
+               | RedNode _ c z' d => fun b a => {<RedNode (BlackNode a data b) z (BlackNode c z' d)>}
+               | b => fun a t => {<BlackNode t data (RedNode a z b)>}
+               end t1'
+    end t2
+  end.
+
+Section insert.
+  Variable x : nat.
+
+  Definition insResult c n :=
+    match c with
+    | Red => rtree n
+    | Black => {c' : color & rbtree c' n}
+    end.
+
+  Fixpoint ins c n (t : rbtree c n) : insResult c n :=
+    match t with
+    | Leaf => {<RedNode Leaf x Leaf>}
+    | RedNode _ a y b =>
+      if le_lt_dec x y
+      then RedNode' (projT2 (ins a)) y b
+      else RedNode' a y (projT2 (ins b))
+    | BlackNode c1 c2 _ a y b =>
+      if le_lt_dec x y
+      then
+        match c1 return insResult c1 _ -> _ with
+        | Red => fun ins_a => balance1 ins_a y b
+        | _ => fun ins_a => {<BlackNode (projT2 ins_a) y b>}
+        end (ins a)
+      else
+        match c2 return insResult c2 _ -> _ with
+        | Red => fun ins_b => balance2 ins_b y a
+        | _ => fun ins_b => {<BlackNode a y (projT2 ins_b)>}
+        end (ins b)
+    end.
+
+  Definition insertResult c n :=
+    match c with
+    | Red => rbtree Black (S n)
+    | Black => {c' : color & rbtree c' n}
+    end.
+
+  Definition makeRbtree c n : insResult c n -> insertResult c n :=
+    match c with
+    | Red => fun r =>
+               match r with
+               | RedNode' _ _ _ a x b => BlackNode a x b
+               end
+    | Black => fun r => r
+    end.
+
+  Implicit Arguments makeRbtree [c n].
+
+  Definition insert c n (t : rbtree c n) : insertResult c n :=
+    makeRbtree (ins t).
