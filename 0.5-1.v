@@ -26,6 +26,22 @@ Section plist.
     | TCons _ x _ ls' => x :: plistOut ls'
     end.
 
+  Notation "{< x >}" := (existT _ _ x).
+
+  Fixpoint plistIn' (ls : list A) : {n : nat & plist n} :=
+    match ls with
+    | nil => {<Nil>}
+    | h :: t =>
+      match dec h with
+      | left p => {<TCons p (projT2 (plistIn' t))>}
+      | right _ => {<UCons h (projT2 (plistIn' t))>}
+      end
+    end.
+
+  Definition plistIn (ls : list A) := projT2 (plistIn' ls).
+
+  Check plistIn.
+
   Fixpoint count (ls : list A) : nat :=
     match ls with
     | nil => O
