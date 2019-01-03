@@ -323,3 +323,89 @@ Section insert.
 
   Definition insert c n (t : rbtree c n) : insertResult c n :=
     makeRbtree (ins t).
+
+  Section present.
+    Variable z : nat.
+
+    Ltac present_balance :=
+      crush;
+      repeat (match goal with
+              | [_ : context[match ?T with Leaf => _ | _ => _ end] |- _] =>
+                dep_destruct T
+              | [ |- context[match ?T with Leaf => _ | _ => _ end]] =>
+                dep_destruct T
+              end; crush).
+
+    Lemma present_balance1 : forall n (a : rtree n) (y : nat) c2 (b : rbtree c2 n),
+        present z (projT2 (balance1 a y b))
+        <-> rpresent z a \/ z = y \/ present z b.
+      destruct a; present_balance.
+    Qed.
+
+    Lemma present_balance2 : forall n (a : rtree n) (y : nat) c2 (b : rbtree c2 n),
+        present z (projT2 (balance2 a y b))
+        <-> rpresent z a \/ z = y \/ present z b.
+      destruct a; present_balance.
+    Qed.
+
+    Definition present_insResult c n :=
+      match c return (rbtree c n -> insResult c n -> Prop) with
+      | Red => fun t r => rpresent z r <-> z = x \/ present z t
+      | Black => fun t r => present z (projT2 r) <-> z = x \/ present z t
+      end.
+
+    Theorem present_ins : forall c n (t : rbtree c n),
+        present_insResult t (ins t).
+      induction t; crush;
+        repeat (match goal with
+                | [_ : context[if ?E then _ else _] |- _] => destruct E
+                | [ |- context[if ?E then _ else _]] => destruct E
+                | [_ : context[match ?C with Red => _ | Black => _ end] |- _] =>
+                  destruct C
+                end; crush);
+        try match goal with
+            | [_ : context[balance1 ?A ?B ?C] |- _] =>
+              generalize (present_balance1 A B C)
+            end;
+        try match goal with
+            | [_ : context[balance2 ?A ?B ?C] |- _] =>
+              generalize (present_balance2 A B C)
+            end;
+        try match goal with
+            | [ |- context[balance1 ?A ?B ?C]] =>
+              generalize (present_balance1 A B C)
+            end;
+        try match goal with
+            | [ |- context[balance2 ?A ?B ?C]] =>
+              generalize (present_balance2 A B C)
+            end;
+        crush;
+        match goal with
+        | [z : nat, x : nat |- _] =>
+          match goal with
+          | [H : z = x |- _] => rewrite H in *; clear H
+          end
+        end;
+        tauto.
+    Qed.
+
+    Ltac present_insert :=
+      unfold insert; intros n t; inversion t;
+      generalize (present_ins t); simpl;
+      dep_destruct (ins t); tauto.
+
+    Theorem present_insert_Red : forall n (t : rbtree Red n),
+        present z (insert t)
+        <-> (z = x \/ present z t).
+      present_insert.
+    Qed.
+
+    Theorem present_insert_Black : forall n (t : rbtree Black n),
+        present z (projT2 (insert t))
+        <-> (z = x \/ present z t).
+      present_insert.
+    Qed.
+  End present.
+End insert.
+
+Recursive Extraction insert.
