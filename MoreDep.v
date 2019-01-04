@@ -410,6 +410,8 @@ End insert.
 
 Recursive Extraction insert.
 
+(* A Certified Regular Expression Matcher *)
+
 Require Import Ascii String.
 
 Open Scope string_scope.
