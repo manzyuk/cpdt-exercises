@@ -145,3 +145,64 @@ Eval simpl in expDenote (Abs (dom := Unit) (Abs (dom := Unit) (Var (HNext HFirst
 Eval simpl in expDenote (Abs (dom := Unit) (Abs (dom := Unit) (Var HFirst))) HNil.
 
 Eval simpl in expDenote (App (Abs (Var HFirst)) Const) HNil.
+
+(* Recursive Type Definitions *)
+
+Section filist.
+  Variable A : Set.
+
+  Fixpoint filist (n : nat) : Set :=
+    match n with
+    | O => unit
+    | S n' => A * filist n'
+    end%type.
+
+  Fixpoint ffin (n : nat) : Set :=
+    match n with
+    | O => Empty_set
+    | S n' => option (ffin n')
+    end.
+
+  Fixpoint fget (n : nat) : filist n -> ffin n -> A :=
+    match n with
+    | O => fun _ idx => match idx with end
+    | S n' => fun ls idx =>
+                match idx with
+                | None => fst ls
+                | Some idx' => fget n' (snd ls) idx'
+                end
+    end.
+End filist.
+
+Section fhlist.
+  Variable A : Type.
+  Variable B : A -> Type.
+
+  Fixpoint fhlist (ls : list A) : Type :=
+    match ls with
+    | nil => unit
+    | x :: ls' => B x * fhlist ls'
+    end%type.
+
+  Variable elm : A.
+
+  Fixpoint fmember (ls : list A) : Type :=
+    match ls with
+    | nil => Empty_set
+    | x :: ls' => (x = elm) + fmember ls'
+    end%type.
+
+  Fixpoint fhget (ls : list A) : fhlist ls -> fmember ls -> B elm :=
+    match ls with
+    | nil => fun _ idx => match idx with end
+    | _ :: ls' => fun mls idx =>
+                    match idx with
+                    | inl pf => match pf with
+                                | eq_refl => fst mls
+                                end
+                    | inr idx' => fhget ls' (snd mls) idx'
+                    end
+    end.
+End fhlist.
+
+Implicit Arguments fhget [A B elm ls].
