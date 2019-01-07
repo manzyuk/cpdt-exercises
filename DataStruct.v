@@ -52,3 +52,58 @@ Section ilist_map.
     induction ls; dep_destruct idx; crush.
   Qed.
 End ilist_map.
+
+(* Heterogeneous Lists *)
+
+Section hlist.
+  Variable A : Type.
+  Variable B : A -> Type.
+
+  Inductive hlist : list A -> Type :=
+  | HNil : hlist nil
+  | HCons : forall (x : A) (ls : list A), B x -> hlist ls -> hlist (x :: ls).
+
+  Variable elm : A.
+
+  Inductive member : list A -> Type :=
+  | HFirst : forall ls, member (elm :: ls)
+  | HNext : forall x ls, member ls -> member (x :: ls).
+
+  Fixpoint hget ls (mls : hlist ls) : member ls -> B elm :=
+    match mls with
+    | HNil => fun mem =>
+                match mem in member ls' return (match ls' with
+                                                | nil => B elm
+                                                | _ :: _ => unit
+                                                end) with
+                | HFirst _ => tt
+                | HNext _ _ _ => tt
+                end
+    | HCons _ _ x mls' => fun mem =>
+                            match mem in member ls' return (match ls' with
+                                                            | nil => Empty_set
+                                                            | x' :: ls'' =>
+                                                              B x' -> (member ls'' -> B elm) -> B elm
+                                                            end) with
+                            | HFirst _ => fun x _ => x
+                            | HNext _ _ mem' => fun _ get_mls' => get_mls' mem'
+                            end x (hget mls')
+    end.
+End hlist.
+
+Implicit Arguments HNil [A B].
+Implicit Arguments HCons [A B x ls].
+Implicit Arguments HFirst [A elm ls].
+Implicit Arguments HNext [A elm x ls].
+
+Definition someTypes : list Set := nat :: bool :: nil.
+
+Example someValues : hlist (fun T : Set => T) someTypes :=
+  HCons 5 (HCons true HNil).
+
+Eval simpl in hget someValues HFirst.
+
+Eval simpl in hget someValues (HNext HFirst).
+
+Example somePairs : hlist (fun T : Set => T * T)%type someTypes :=
+  HCons (1, 2) (HCons (true, false) HNil).
