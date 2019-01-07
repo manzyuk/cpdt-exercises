@@ -48,8 +48,16 @@ Section plist.
     | h :: t => if dec h then S (count t) else count t
     end.
 
-  Fixpoint plistIn (ls : list A) : plist (count ls) :=
-    match ls return plist (count ls) with
-    | nil => Nil
-    | h :: t => if dec h then TCons _ (plistIn t) else UCons h (plistIn t)
-    end.
+  Ltac plistIn :=
+    crush;
+    match goal with
+    | [ |- context[dec ?A]] => destruct (dec A)
+    end; crush.
+
+  Theorem plistIn_bound : forall ls, projT1 (plistIn' ls) = count ls.
+    intro; induction ls; plistIn.
+  Qed.
+
+  Theorem out_in : forall ls, plistOut (plistIn ls) = ls.
+    intro; induction ls; crush; unfold plistIn in *; plistIn.
+  Qed.
