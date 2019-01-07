@@ -107,3 +107,41 @@ Eval simpl in hget someValues (HNext HFirst).
 
 Example somePairs : hlist (fun T : Set => T * T)%type someTypes :=
   HCons (1, 2) (HCons (true, false) HNil).
+
+(* A Lambda Calculus Interpreter *)
+
+Inductive type : Set :=
+| Unit : type
+| Arrow : type -> type -> type.
+
+Inductive exp : list type -> type -> Set :=
+| Const : forall ts, exp ts Unit
+| Var : forall ts t, member t ts -> exp ts t
+| App : forall ts dom ran, exp ts (Arrow dom ran) -> exp ts dom -> exp ts ran
+| Abs : forall ts dom ran, exp (dom :: ts) ran -> exp ts (Arrow dom ran).
+
+Implicit Arguments Const [ts].
+
+Fixpoint typeDenote (t : type) : Set :=
+  match t with
+  | Unit => unit
+  | Arrow t1 t2 => typeDenote t1 -> typeDenote t2
+  end.
+
+Fixpoint expDenote ts t (e : exp ts t) : hlist typeDenote ts -> typeDenote t :=
+  match e with
+  | Const _ => fun _ => tt
+  | Var _ _ mem => fun s => hget s mem
+  | App _ _ _ e1 e2 => fun s => (expDenote e1 s) (expDenote e2 s)
+  | Abs _ _ _ e' => fun s => fun x => expDenote e' (HCons x s)
+  end.
+
+Eval simpl in expDenote Const HNil.
+
+Eval simpl in expDenote (Abs (dom := Unit) (Var HFirst)) HNil.
+
+Eval simpl in expDenote (Abs (dom := Unit) (Abs (dom := Unit) (Var (HNext HFirst)))) HNil.
+
+Eval simpl in expDenote (Abs (dom := Unit) (Abs (dom := Unit) (Var HFirst))) HNil.
+
+Eval simpl in expDenote (App (Abs (Var HFirst)) Const) HNil.
