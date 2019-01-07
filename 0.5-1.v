@@ -61,3 +61,9 @@ Section plist.
   Theorem out_in : forall ls, plistOut (plistIn ls) = ls.
     intro; induction ls; crush; unfold plistIn in *; plistIn.
   Qed.
+
+  Fixpoint grab n (ls : plist (S n)) : sig P :=
+    match ls in plist (S n) return sig P with
+    | UCons (S n') _ ls' => grab (n := n') ls'
+    | TCons _ x pf _ => exist P x pf
+    end.
