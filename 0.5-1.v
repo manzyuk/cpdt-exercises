@@ -67,3 +67,4 @@ Section plist.
     | UCons (S _) _ ls' => grab ls'
     | TCons _ x pf _ => exist P x pf
     end.
+End plist.
