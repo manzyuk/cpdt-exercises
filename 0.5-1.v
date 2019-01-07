@@ -64,6 +64,6 @@ Section plist.
 
   Fixpoint grab n (ls : plist (S n)) : sig P :=
     match ls in plist (S n) return sig P with
-    | UCons (S n') _ ls' => grab (n := n') ls'
+    | UCons (S _) _ ls' => grab ls'
     | TCons _ x pf _ => exist P x pf
     end.
