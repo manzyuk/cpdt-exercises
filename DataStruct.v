@@ -206,3 +206,60 @@ Section fhlist.
 End fhlist.
 
 Implicit Arguments fhget [A B elm ls].
+
+(* Data Structures as Index Functions *)
+
+Section tree.
+  Variable A : Set.
+
+  Inductive tree : Set :=
+  | Leaf : A -> tree
+  | Node : forall n, (ffin n -> tree) -> tree.
+End tree.
+
+Implicit Arguments Node [A n].
+
+Section rifoldr.
+  Variables A B : Set.
+  Variable f : A -> B -> B.
+  Variable i : B.
+
+  Fixpoint rifoldr (n : nat) : (ffin n -> A) -> B :=
+    match n with
+    | O => fun _ => i
+    | S n' => fun get => f (get None) (rifoldr n' (fun idx => get (Some idx)))
+    end.
+End rifoldr.
+
+Implicit Arguments rifoldr [A B n].
+
+Fixpoint sum (t : tree nat) : nat :=
+  match t with
+  | Leaf n => n
+  | Node _ f => rifoldr plus O (fun idx => sum (f idx))
+  end.
+
+Fixpoint inc (t : tree nat) : tree nat :=
+  match t with
+  | Leaf n => Leaf (S n)
+  | Node _ f => Node (fun idx => inc (f idx))
+  end.
+
+Lemma plus_ge : forall x1 y1 x2 y2,
+    x1 >= x2 -> y1 >= y2 -> x1 + y1 >= x2 + y2.
+  crush.
+Qed.
+
+Lemma sum_inc' : forall n (f1 f2 : ffin n -> nat),
+    (forall idx, f1 idx >= f2 idx)
+    -> rifoldr plus O f1 >= rifoldr plus O f2.
+  Hint Resolve plus_ge.
+
+  induction n; crush.
+Qed.
+
+Theorem sum_inc : forall t, sum (inc t) >= sum t.
+  Hint Resolve sum_inc'.
+
+  induction t; crush.
+Qed.
