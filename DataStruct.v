@@ -263,3 +263,170 @@ Theorem sum_inc : forall t, sum (inc t) >= sum t.
 
   induction t; crush.
 Qed.
+
+(* Another Interpreter Example *)
+
+Inductive type' : Type := Nat | Bool.
+
+Inductive exp' : type' -> Type :=
+| NConst : nat -> exp' Nat
+| Plus : exp' Nat -> exp' Nat -> exp' Nat
+| Eq : exp' Nat -> exp' Nat -> exp' Bool
+| BConst : bool -> exp' Bool
+| Cond : forall n t, (ffin n -> exp' Bool) -> (ffin n -> exp' t) -> exp' t -> exp' t.
+
+Example ex1 := Cond 2
+  (fun f => match f with
+            | None => Eq (Plus (NConst 2) (NConst 2)) (NConst 5)
+            | Some None => Eq (Plus (NConst 1) (NConst 1)) (NConst 2)
+            | Some (Some v) => match v with end
+            end)
+  (fun f => match f with
+            | None => NConst 0
+            | Some None => NConst 1
+            | Some (Some v) => match v with end
+            end)
+  (NConst 2).
+
+Definition type'Denote (t : type') : Set :=
+  match t with
+  | Nat => nat
+  | Bool => bool
+  end.
+
+Section cond.
+  Variable A : Set.
+  Variable default : A.
+
+  Fixpoint cond (n : nat) : (ffin n -> bool) -> (ffin n -> A) -> A :=
+    match n with
+    | O => fun _ _ => default
+    | S n' => fun tests bodies =>
+      if tests None
+      then bodies None
+      else cond n'
+                (fun idx => tests (Some idx))
+                (fun idx => bodies (Some idx))
+    end.
+End cond.
+
+Implicit Arguments cond [A n].
+
+Fixpoint exp'Denote t (e : exp' t) : type'Denote t :=
+  match e with
+  | NConst n => n
+  | Plus e1 e2 => exp'Denote e1 + exp'Denote e2
+  | Eq e1 e2 =>
+    if eq_nat_dec (exp'Denote e1) (exp'Denote e2) then true else false
+  | BConst b => b
+  | Cond _ _ tests bodies default =>
+    cond
+      (exp'Denote default)
+      (fun idx => exp'Denote (tests idx))
+      (fun idx => exp'Denote (bodies idx))
+  end.
+
+Section cfoldCond.
+  Variable t : type'.
+  Variable default : exp' t.
+
+  Fixpoint cfoldCond (n : nat)
+    : (ffin n -> exp' Bool) -> (ffin n -> exp' t) -> exp' t :=
+    match n with
+    | O => fun _ _ => default
+    | S n' => fun tests bodies =>
+      match tests None return _ with
+      | BConst true => bodies None
+      | BConst false => cfoldCond n'
+          (fun idx => tests (Some idx))
+          (fun idx => bodies (Some idx))
+      | _ =>
+        let e := cfoldCond n'
+          (fun idx => tests (Some idx))
+          (fun idx => bodies (Some idx)) in
+        match e in exp' t return exp' t -> exp' t with
+        | Cond n _ tests' bodies' default' => fun body =>
+            Cond
+              (S n)
+              (fun idx => match idx with
+                          | None => tests None
+                          | Some idx => tests' idx
+                          end)
+              (fun idx => match idx with
+                          | None => body
+                          | Some idx => bodies' idx
+                          end)
+              default'
+        | e => fun body =>
+            Cond
+              1
+              (fun _ => tests None)
+              (fun _ => body)
+              e
+        end (bodies None)
+      end
+    end.
+End cfoldCond.
+
+Implicit Arguments cfoldCond [t n].
+
+Fixpoint cfold t (e : exp' t) : exp' t :=
+  match e with
+  | NConst n => NConst n
+  | Plus e1 e2 =>
+    let e1' := cfold e1 in
+    let e2' := cfold e2 in
+    match e1', e2' return exp' Nat with
+    | NConst n1, NConst n2 => NConst (n1 + n2)
+    | _, _ => Plus e1' e2'
+    end
+  | Eq e1 e2 =>
+    let e1' := cfold e1 in
+    let e2' := cfold e2 in
+    match e1', e2' return exp' Bool with
+    | NConst n1, NConst n2 => BConst (if eq_nat_dec n1 n2 then true else false)
+    | _, _ => Eq e1' e2'
+    end
+  | BConst b => BConst b
+  | Cond _ _ tests bodies default =>
+    cfoldCond
+      (cfold default)
+      (fun idx => cfold (tests idx))
+      (fun idx => cfold (bodies idx))
+  end.
+
+Lemma cfoldCond_correct : forall t (default : exp' t) n (tests : ffin n -> exp' Bool) (bodies : ffin n -> exp' t),
+    exp'Denote (cfoldCond default tests bodies)
+    = exp'Denote (Cond n tests bodies default).
+  induction n; crush;
+    match goal with
+    | [IHn : forall tests bodies, _, tests : _ -> _, bodies : _ -> _ |- _] =>
+      specialize (IHn (fun idx => tests (Some idx)) (fun idx => bodies (Some idx)))
+    end;
+    repeat (match goal with
+            | [ |- context[match ?E with NConst _ => _ | _ => _ end]] =>
+              dep_destruct E
+            | [ |- context[if ?B then _ else _]] => destruct B
+            end; crush).
+Qed.
+
+Lemma cond_ext : forall (A : Set) (default : A) n (tests tests' : ffin n -> bool) (bodies bodies' : ffin n -> A),
+    (forall idx, tests idx = tests' idx)
+    -> (forall idx, bodies idx = bodies' idx)
+    -> cond default tests bodies = cond default tests' bodies'.
+  induction n; crush;
+    match goal with
+    | [ |- context[if ?E then _ else _]] => destruct E
+    end; crush.
+Qed.
+
+Theorem cfold_correct : forall t (e : exp' t),
+    exp'Denote (cfold e) = exp'Denote e.
+  Hint Rewrite cfoldCond_correct.
+  Hint Resolve cond_ext.
+
+  induction e; crush;
+    repeat (match goal with
+            | [ |- context[cfold ?E]] => dep_destruct (cfold E)
+            end; crush).
+Qed.
