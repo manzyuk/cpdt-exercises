@@ -11,6 +11,7 @@ Section tree.
   | Node : tree -> tree -> tree.
 End tree.
 
+(* Inductive *)
 
 Section htree.
   Variable A : Type.
@@ -106,6 +107,8 @@ Section htmap2.
     end ht2.
 End htmap2.
 
+(* Recursive *)
+
 Section fhtree.
   Variable A : Type.
   Variable B : A -> Type.
@@ -148,3 +151,25 @@ Section fhtmap2.
       (fhtmap2 l (fst ht1) (fst ht2), fhtmap2 r (snd ht1) (snd ht2))
     end.
 End fhtmap2.
+
+(* Index Function *)
+
+Section fhtree'.
+  Variable A : Type.
+  Variable B : A -> Type.
+
+  Definition fhtree' (t : tree A) := forall elm, fpath elm t -> B elm.
+  Variable elm : A.
+
+  Definition ftget' (t : tree A) : fhtree' t -> fpath elm t -> B elm :=
+    fun f p => f elm p.
+End fhtree'.
+
+Section fhtmap2'.
+  Variable A : Type.
+  Variables B1 B2 C : A -> Type.
+  Variable f : forall x, B1 x -> B2 x -> C x.
+
+  Definition fhtmap2' (t : tree A) : fhtree' B1 t -> fhtree' B2 t -> fhtree' C t :=
+    fun f1 f2 => fun elm p => f (f1 elm p) (f2 elm p).
+End fhtmap2'.
