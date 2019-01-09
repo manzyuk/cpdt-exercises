@@ -135,3 +135,16 @@ Section fhtree.
       end
     end.
 End fhtree.
+
+Section fhtmap2.
+  Variable A : Type.
+  Variables B1 B2 C : A -> Type.
+  Variable f : forall x, B1 x -> B2 x -> C x.
+
+  Fixpoint fhtmap2 (t : tree A) : fhtree B1 t -> fhtree B2 t -> fhtree C t :=
+    match t with
+    | Leaf x => fun b1 b2 => f b1 b2
+    | Node l r => fun ht1 ht2 =>
+      (fhtmap2 l (fst ht1) (fst ht2), fhtmap2 r (snd ht1) (snd ht2))
+    end.
+End fhtmap2.
