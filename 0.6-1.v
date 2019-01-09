@@ -105,3 +105,33 @@ Section htmap2.
       end (htmap2 hl1) (htmap2 hr1)
     end ht2.
 End htmap2.
+
+Section fhtree.
+  Variable A : Type.
+  Variable B : A -> Type.
+
+  Fixpoint fhtree (t : tree A) : Type :=
+    match t with
+    | Leaf x => B x
+    | Node l r => fhtree l * fhtree r
+    end%type.
+
+  Variable elm : A.
+
+  Fixpoint fpath (t : tree A) : Type :=
+    match t with
+    | Leaf x => x = elm
+    | Node l r => fpath l + fpath r
+    end%type.
+
+  Fixpoint ftget (t : tree A) : fhtree t -> fpath t -> B elm :=
+    match t with
+    | Leaf x => fun b p =>
+      match p with eq_refl => b end
+    | Node l r => fun b p =>
+      match p with
+      | inl p' => ftget l (fst b) p'
+      | inr p' => ftget r (snd b) p'
+      end
+    end.
+End fhtree.
